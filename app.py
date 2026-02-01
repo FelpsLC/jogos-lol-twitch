@@ -17,7 +17,7 @@ def jogos_lol():
     try:
         url = "https://esports-api.lolesports.com/persisted/gw/getSchedule?hl=pt-BR"
         headers = {
-            "x-api-key": "SUA_API_KEY_AQUI"
+            "x-api-key": os.getenv("RIOT_API_KEY")
         }
 
         data = requests.get(url, headers=headers).json()
