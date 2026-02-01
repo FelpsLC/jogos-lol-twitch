@@ -14,27 +14,25 @@ LIGAS = {
     "LCS": "lcs"
 }
 
+# Rota principal: lista jogos de LoL do dia
 @app.route("/jogoslol")
 def jogos_lol():
     try:
         url = "https://esports-api.lolesports.com/persisted/gw/getSchedule?hl=pt-BR"
         
-        # Pega a API KEY da variável de ambiente
+        # Pega a API Key do Railway
         api_key = os.getenv("RIOT_API_KEY")
         if not api_key:
-            return "⚠️ API Key da Riot não encontrada."
+            return "⚠️ API Key da Riot não encontrada. Use /teste para verificar."
 
-        headers = {
-            "x-api-key": api_key
-        }
+        headers = {"x-api-key": api_key}
 
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code != 200:
             return f"⚠️ Erro na API da Riot ({response.status_code})"
-        
+
         data = response.json()
 
-        # Ajuste do fuso horário (UTC-3)
         hoje = (datetime.utcnow() - timedelta(hours=3)).date().isoformat()
         resposta = []
 
@@ -46,7 +44,6 @@ def jogos_lol():
             if liga_slug not in LIGAS.values():
                 continue
 
-            # Evita erro caso times não estejam disponíveis
             teams = event.get("match", {}).get("teams", [])
             if len(teams) < 2:
                 continue
@@ -69,10 +66,18 @@ def jogos_lol():
         return "🎮 LoL hoje: " + " | ".join(resposta)
 
     except Exception as e:
-        # Retorna erro real para ajudar no debug
         return f"⚠️ Erro ao buscar jogos de LoL: {str(e)}"
 
+# Rota teste: verifica se a variável de ambiente está chegando
+@app.route("/teste")
+def teste():
+    api_key = os.getenv("RIOT_API_KEY")
+    if api_key:
+        return "✅ API Key encontrada!"
+    else:
+        return "❌ API Key NÃO encontrada!"
+
+# Configuração da porta para Railway
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
