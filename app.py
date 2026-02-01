@@ -1,6 +1,6 @@
 from flask import Flask
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 app = Flask(__name__)
@@ -11,44 +11,45 @@ def home():
 
 @app.route("/jogoslol")
 def jogos_lol():
-    url = "https://api.pandascore.co/lol/matches/upcoming"
+    url = "https://lolesports.com/api/schedule"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json"
+    }
 
     try:
-        r = requests.get(url, timeout=10)
-        if r.status_code != 200:
-            return "❌ Erro ao buscar jogos"
-
+        r = requests.get(url, headers=headers, timeout=10)
         data = r.json()
-        hoje = datetime.utcnow().date().isoformat()
+
+        hoje = (datetime.utcnow() - timedelta(hours=3)).date().isoformat()
         jogos = []
 
-        for jogo in data:
-            if not jogo.get("begin_at"):
+        for e in data.get("data", {}).get("schedule", {}).get("events", []):
+            if not e.get("startTime", "").startswith(hoje):
                 continue
 
-            if not jogo["begin_at"].startswith(hoje):
+            league = e["league"]["name"]
+            teams = e["match"]["teams"]
+
+            if len(teams) < 2:
                 continue
 
-            times = jogo.get("opponents", [])
-            if len(times) < 2:
-                continue
+            t1 = teams[0]["name"]
+            t2 = teams[1]["name"]
 
-            t1 = times[0]["opponent"]["name"]
-            t2 = times[1]["opponent"]["name"]
-
-            hora = jogo["begin_at"][11:16]
-            liga = jogo["league"]["name"]
-
-            jogos.append(f"{liga}: {t1} vs {t2} ({hora})")
+            hora = datetime.fromisoformat(e["startTime"].replace("Z", "")) - timedelta(hours=3)
+            jogos.append(f"{league}: {t1} vs {t2} ({hora:%H:%M})")
 
         if not jogos:
             return "❌ Nenhum jogo de LoL hoje"
 
         return " | ".join(jogos)
 
-    except Exception:
-        return "❌ Erro inesperado"
+    except Exception as e:
+        return "❌ Erro ao buscar jogos"
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.r
+    app.run(host="0.0.0.0", port=port)
+
