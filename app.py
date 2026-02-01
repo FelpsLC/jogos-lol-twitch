@@ -1,6 +1,6 @@
 from flask import Flask
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
 
 app = Flask(__name__)
@@ -9,57 +9,46 @@ app = Flask(__name__)
 def home():
     return "✅ API LoL online!"
 
-@app.route("/teste")
-def teste():
-    if os.getenv("RIOT_API_KEY"):
-        return "✅ API Key encontrada"
-    return "❌ API Key NÃO encontrada"
-
 @app.route("/jogoslol")
 def jogos_lol():
-    url = "https://esports-api.lolesports.com/persisted/gw/getSchedule?hl=pt-BR"
+    url = "https://api.pandascore.co/lol/matches/upcoming"
 
-    api_key = os.getenv("RIOT_API_KEY")
-    if not api_key:
-        return "❌ API Key não encontrada"
+    try:
+        r = requests.get(url, timeout=10)
+        if r.status_code != 200:
+            return "❌ Erro ao buscar jogos"
 
-    headers = {
-        "x-api-key": api_key,
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json",
-        "Origin": "https://lolesports.com"
-    }
+        data = r.json()
+        hoje = datetime.utcnow().date().isoformat()
+        jogos = []
 
-    r = requests.get(url, headers=headers, timeout=10)
+        for jogo in data:
+            if not jogo.get("begin_at"):
+                continue
 
-    if r.status_code != 200:
-        return f"❌ Erro Riot {r.status_code}"
+            if not jogo["begin_at"].startswith(hoje):
+                continue
 
-    data = r.json()
+            times = jogo.get("opponents", [])
+            if len(times) < 2:
+                continue
 
-    hoje = (datetime.utcnow() - timedelta(hours=3)).date().isoformat()
-    jogos = []
+            t1 = times[0]["opponent"]["name"]
+            t2 = times[1]["opponent"]["name"]
 
-    for e in data["data"]["schedule"]["events"]:
-        if not e["startTime"].startswith(hoje):
-            continue
+            hora = jogo["begin_at"][11:16]
+            liga = jogo["league"]["name"]
 
-        liga = e["league"]["slug"]
-        if liga not in ["lck", "lpl", "lec", "lcs", "cblol"]:
-            continue
+            jogos.append(f"{liga}: {t1} vs {t2} ({hora})")
 
-        t = e["match"]["teams"]
-        if len(t) < 2:
-            continue
+        if not jogos:
+            return "❌ Nenhum jogo de LoL hoje"
 
-        hora = datetime.fromisoformat(e["startTime"].replace("Z", "")) - timedelta(hours=3)
-        jogos.append(f"{liga.upper()}: {t[0]['name']} vs {t[1]['name']} ({hora:%H:%M})")
+        return " | ".join(jogos)
 
-    if not jogos:
-        return "❌ Nenhum jogo hoje"
-
-    return " | ".join(jogos)
+    except Exception:
+        return "❌ Erro inesperado"
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.r
